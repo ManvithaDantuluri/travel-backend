@@ -1,0 +1,53 @@
+version: "3.8"
+
+services:
+  db:
+    image: mysql:8.0
+    container_name: travel_db
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: admin
+      MYSQL_DATABASE: travelmanagement
+    volumes:
+      - mysql-data:/var/lib/mysql
+    networks:
+      - travel-net
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build:
+      context: .
+    image: travel-backend:latest
+    container_name: travel_backend
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "8081:8081"
+    environment:
+      SPRING_PROFILES_ACTIVE: default
+      JAVA_OPTS: "-Xms128m -Xmx512m"
+    # ⭐ Inline wait command (NO new file required)
+    command: >
+      sh -c "
+      until mysqladmin ping -hdb -uroot -padmin --silent; do
+        echo 'Waiting for MySQL to be ready...';
+        sleep 2;
+      done;
+      echo 'MySQL is ready! Starting Spring Boot...';
+      java $JAVA_OPTS -jar /app/app.jar
+      "
+    networks:
+      - travel-net
+
+volumes:
+  mysql-data:
+
+networks:
+  travel-net:
+    driver: bridge

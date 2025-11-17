@@ -2,19 +2,23 @@
 FROM maven:3.9-eclipse-temurin-21 AS build
 WORKDIR /app
 
-COPY pom.xml .
-# Cache deps to speed up rebuilds
-RUN --mount=type=cache,target=/root/.m2 mvn -B -DskipTests dependency:go-offline
+# Install git to clone repository
+RUN apt-get update && apt-get install -y git && apt-get clean
 
-COPY src ./src
-RUN --mount=type=cache,target=/root/.m2 mvn -B -DskipTests clean install package
+# Clone your GitHub project
+RUN git clone https://github.com/ManvithaDantuluri/travel-backend.git .
+
+# Build the project
+RUN mvn -B -DskipTests clean package
 
 # ---------- Run stage ----------
 FROM eclipse-temurin:21-jre-alpine
 WORKDIR /app
 
+# Copy jar from build stage
 COPY --from=build /app/target/*.jar app.jar
 
 ENV JAVA_OPTS=""
 EXPOSE 8081
-ENTRYPOINT ["sh","-c","java $JAVA_OPTS -jar app.jar"]
+
+ENTRYPOINT ["sh", "-c", "exec java $JAVA_OPTS -jar /app/app.jar"]
